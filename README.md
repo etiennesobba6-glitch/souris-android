@@ -1,22 +1,31 @@
 # Souris Android
 
-Pointeur de souris virtuel pour Android : un curseur flottant (flèche, main, texte, croix, point)
-et un petit pavé tactile pour le déplacer et cliquer, sans root.
+Pointeur de souris virtuel pour Android : un curseur flottant (flèche, main, texte, croix, point),
+un petit pavé tactile déplaçable, le glisser-déposer et des outils de dessin. Sans root.
 
-## Utilisation
+## Bouton rond flottant (toujours au-dessus de tout, déplaçable)
 
-- **Bouton rond flottant** (toujours au-dessus de tout, déplaçable en le faisant glisser)
-  - appui court : souris activée (✕ rouge) / désactivée (M gris, rien n'est affiché)
-  - appui long (~1 s) : **arrêt d'urgence**, le service s'arrête complètement
-- **Pavé** (40 % de la largeur, 25 % de la hauteur, en bas à droite)
-  - glisser : déplace le pointeur
-  - toucher : clic ; appui long : clic long
-  - bouton « Pointeur » : change de variante (flèche → main → texte → croix → point)
-- La souris s'éteint toute seule après **2 minutes** sans utilisation
-- L'appli contient aussi un bouton « Arrêter la souris »
+- appui court : souris activée (✕ rouge) / désactivée (M gris, pavé et pointeur masqués)
+- appui long (~1 s) : **arrêt d'urgence**, le service s'arrête complètement
+- La souris s'éteint toute seule après **2 minutes** sans utilisation (les dessins restent)
 
-Les touches en dehors du pavé et du bouton passent normalement aux applis dessous,
-clavier compris. Le pointeur lui-même n'intercepte jamais les touches.
+## Pavé
+
+- barre grise « Glisser pour déplacer » : fais-la glisser pour placer le pavé où tu veux
+- bouton **Forme** : change le pointeur (flèche → main → texte → croix → point)
+- bouton **Mode** : change ce que fait un glissement dans la zone claire
+
+| Mode | Effet |
+|------|-------|
+| Clic | glisser = déplacer le pointeur, toucher = clic, appui long = clic long |
+| Glisser | glisser-déposer : appui maintenu à la position du pointeur (~0,5 s), puis déplacement ; en relevant le doigt, l'élément est lâché |
+| Dessin | trace un trait à la position du pointeur ; palette de 8 couleurs, épaisseur Fin/Moyen/Épais, Annuler (dernier trait), Effacer (tout) |
+| Gomme | efface les traits déjà tracés (épaisseur au choix) |
+
+Les traits sont dessinés sur un calque transparent par-dessus les autres applis. Il ne bloque jamais
+les touches. Il est fixe à l'écran : si l'appli en dessous défile, le dessin ne bouge pas.
+
+Pour changer les couleurs, modifier la liste `palette` dans `CursorService.kt`.
 
 ## Dernier recours si l'écran est bloqué
 
@@ -33,7 +42,6 @@ Puis sur GitHub : onglet **Actions** → **Build APK** → télécharge l'artefa
 
 ## Pistes d'amélioration
 
-- Glisser-déposer (clic maintenu + déplacement)
 - Défilement (deux doigts sur le pavé)
-- Pavé redimensionnable / déplaçable
+- Couleur personnalisée, formes (ligne, rectangle, cercle)
 - Boutons retour, accueil, récents (`performGlobalAction`)

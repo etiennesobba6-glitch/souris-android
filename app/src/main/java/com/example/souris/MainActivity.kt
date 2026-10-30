@@ -30,7 +30,11 @@ class MainActivity : Activity() {
                 "Utilisation :\n" +
                 "• Bouton rond flottant : appui court = souris on/off, " +
                 "appui long = arrêt complet, glisser = le déplacer.\n" +
-                "• Pavé : glisser = déplacer, toucher = clic, appui long = clic long.\n" +
+                "• Pavé : barre grise = le déplacer. Bouton « Mode » :\n" +
+                "   - Clic : glisser = bouger le pointeur, toucher = clic\n" +
+                "   - Glisser : glisser-déposer (appui maintenu + déplacement)\n" +
+                "   - Dessin : trace des traits (couleurs, épaisseur, annuler, effacer)\n" +
+                "   - Gomme : efface les traits\n" +
                 "• La souris s'éteint seule après 2 minutes d'inactivité.\n\n"
             textSize = 16f
             setTextColor(Color.BLACK)
