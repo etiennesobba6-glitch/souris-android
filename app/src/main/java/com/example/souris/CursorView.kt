@@ -9,10 +9,16 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.view.View
 
-enum class CursorType { ARROW, HAND, TEXT, CROSS }
+enum class CursorType(val label: String) {
+    ARROW("Flèche"),
+    HAND("Main"),
+    TEXT("Texte"),
+    CROSS("Croix"),
+    DOT("Point")
+}
 
 /**
- * Vue 96x96 px qui dessine le pointeur. Le "point chaud" (hotspot) est
+ * Vue SIZE x SIZE px qui dessine le pointeur. Le "point chaud" (hotspot) est
  * l'endroit précis de l'écran où le clic est envoyé ; il dépend du type.
  */
 class CursorView(context: Context) : View(context) {
@@ -38,11 +44,21 @@ class CursorView(context: Context) : View(context) {
         strokeJoin = Paint.Join.ROUND
         strokeCap = Paint.Cap.ROUND
     }
+    private val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = 9f
+        strokeCap = Paint.Cap.ROUND
+    }
+    private val black = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLACK
+        style = Paint.Style.FILL
+    }
 
     fun hotspot(): PointF = when (type) {
         CursorType.ARROW -> PointF(6f, 4f)
         CursorType.HAND -> PointF(30f, 6f)
-        CursorType.TEXT, CursorType.CROSS -> PointF(SIZE / 2f, SIZE / 2f)
+        CursorType.TEXT, CursorType.CROSS, CursorType.DOT -> PointF(SIZE / 2f, SIZE / 2f)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -51,6 +67,7 @@ class CursorView(context: Context) : View(context) {
             CursorType.HAND -> drawHand(canvas)
             CursorType.TEXT -> drawText(canvas)
             CursorType.CROSS -> drawCross(canvas)
+            CursorType.DOT -> drawDot(canvas)
         }
     }
 
@@ -78,10 +95,9 @@ class CursorView(context: Context) : View(context) {
         c.drawRoundRect(finger, 7f, 7f, stroke)
     }
 
+    // Contour blanc puis trait noir : reste visible sur tout fond
     private fun drawText(c: Canvas) {
         val cx = SIZE / 2f
-        // Contour blanc puis trait noir pour rester visible sur tout fond
-        val halo = Paint(stroke).apply { color = Color.WHITE; strokeWidth = 9f }
         for (p in listOf(halo, stroke)) {
             c.drawLine(cx, 20f, cx, 76f, p)
             c.drawLine(cx - 10f, 20f, cx + 10f, 20f, p)
@@ -91,10 +107,15 @@ class CursorView(context: Context) : View(context) {
 
     private fun drawCross(c: Canvas) {
         val m = SIZE / 2f
-        val halo = Paint(stroke).apply { color = Color.WHITE; strokeWidth = 9f }
         for (p in listOf(halo, stroke)) {
             c.drawLine(m, 16f, m, SIZE - 16f, p)
             c.drawLine(16f, m, SIZE - 16f, m, p)
         }
+    }
+
+    private fun drawDot(c: Canvas) {
+        val m = SIZE / 2f
+        c.drawCircle(m, m, 17f, fill)
+        c.drawCircle(m, m, 12f, black)
     }
 }

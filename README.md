@@ -1,37 +1,39 @@
 # Souris Android
 
-Pointeur de souris virtuel pour Android : un curseur flottant (flèche, main, texte, croix)
-et un pavé tactile pour le déplacer et cliquer, sans root.
+Pointeur de souris virtuel pour Android : un curseur flottant (flèche, main, texte, croix, point)
+et un petit pavé tactile pour le déplacer et cliquer, sans root.
 
 ## Utilisation
 
-- Glisser sur le pavé : déplace le pointeur
-- Toucher : clic
-- Appui long : clic long
-- Bouton « Pointeur » : change de variante (flèche → main → texte → croix)
+- **Bouton rond flottant** (toujours au-dessus de tout, déplaçable en le faisant glisser)
+  - appui court : souris activée (✕ rouge) / désactivée (M gris, rien n'est affiché)
+  - appui long (~1 s) : **arrêt d'urgence**, le service s'arrête complètement
+- **Pavé** (40 % de la largeur, 25 % de la hauteur, en bas à droite)
+  - glisser : déplace le pointeur
+  - toucher : clic ; appui long : clic long
+  - bouton « Pointeur » : change de variante (flèche → main → texte → croix → point)
+- La souris s'éteint toute seule après **2 minutes** sans utilisation
+- L'appli contient aussi un bouton « Arrêter la souris »
+
+Les touches en dehors du pavé et du bouton passent normalement aux applis dessous,
+clavier compris. Le pointeur lui-même n'intercepte jamais les touches.
+
+## Dernier recours si l'écran est bloqué
+
+Réglages → Accessibilité → Applications installées → Souris Android → désactiver.
 
 ## Compiler depuis Termux (sans PC)
 
 ```bash
-pkg install git gh
-gh auth login
-git init && git add . && git commit -m "Premier commit"
-git branch -M main
-gh repo create souris-android --public --source=. --push
+git add . && git commit -m "Mise à jour" && git push
 ```
 
-Ensuite, sur GitHub : onglet **Actions** → **Build APK** → télécharge l'artefact
+Puis sur GitHub : onglet **Actions** → **Build APK** → télécharge l'artefact
 `souris-android-debug` (contient `app-debug.apk`).
-
-## Installer
-
-1. Installe l'APK (autorise les sources inconnues si Android le demande).
-2. Ouvre l'appli, puis Réglages d'accessibilité → Souris Android → activer.
 
 ## Pistes d'amélioration
 
 - Glisser-déposer (clic maintenu + déplacement)
-- Défilement (deux doigts sur le pavé → `swipe`)
+- Défilement (deux doigts sur le pavé)
 - Pavé redimensionnable / déplaçable
 - Boutons retour, accueil, récents (`performGlobalAction`)
-- Variantes de pointeur automatiques selon l'élément sous le curseur
