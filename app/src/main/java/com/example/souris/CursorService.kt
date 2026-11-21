@@ -27,9 +27,11 @@ import kotlin.math.abs
 enum class Mode(val label: String) {
     CLICK("Clic"),
     DRAG("Glisser"),
-    DRAW("Dessin"),
-    ERASE("Gomme")
+    DRAW("Dessin")
 }
+
+/** Outil actif en mode Dessin. */
+enum class Tool { PEN, ERASER }
 
 /**
  * Service d'accessibilité. Fenêtres flottantes indépendantes :
@@ -39,7 +41,8 @@ enum class Mode(val label: String) {
  *  - le BOUTON ROND      : toujours au-dessus, déplaçable
  *        appui court = souris on/off, appui long = arrêt complet (arrêt d'urgence)
  *
- * Modes du pavé : Clic, Glisser (glisser-déposer), Dessin, Gomme.
+ * Modes du pavé : Clic, Glisser (glisser-déposer), Dessin (stylo levé/baissé,
+ * outil Crayon ou Gomme).
  * Extinction automatique de la souris après 2 minutes sans utilisation
  * (les dessins déjà tracés restent affichés).
  */
@@ -53,7 +56,7 @@ class CursorService : AccessibilityService() {
         private const val LONG_PRESS_STOP_MS = 900L
         private const val PAD_WIDTH_RATIO = 0.40f
         private const val PAD_HEIGHT_RATIO = 0.25f
-        private const val PAD_HEIGHT_TOOLS_RATIO = 0.42f
+        private const val PAD_HEIGHT_TOOLS_RATIO = 0.46f
         private const val DRAG_HOLD_MS = 500L
     }
 
@@ -100,6 +103,8 @@ class CursorService : AccessibilityService() {
     )
     private var penColor = palette[2]
     private var penWidthIndex = 1
+    private var penDown = true          // stylo baissé : le pointeur trace en bougeant
+    private var tool = Tool.PEN
     private val penWidthsDp = floatArrayOf(3f, 6f, 12f)
     private val penWidthLabels = arrayOf("Fin", "Moyen", "Épais")
     private val swatches = ArrayList<View>()
@@ -261,6 +266,12 @@ class CursorService : AccessibilityService() {
         return if (erase) w * 2.5f else w
     }
 
+    /** Commence un trait (ou un coup de gomme) à la position du pointeur. */
+    private fun beginPenStroke() {
+        val erase = tool == Tool.ERASER
+        drawing?.beginStroke(cx, cy, penColor, penWidthPx(erase), erase)
+    }
+
     // ---------------------------------------------------------------- bouton flottant
 
     private fun addToggle() {
@@ -373,7 +384,7 @@ class CursorService : AccessibilityService() {
 
     // ---------------------------------------------------------------- pavé tactile
 
-    private fun toolsVisible() = mode == Mode.DRAW || mode == Mode.ERASE
+    private fun toolsVisible() = mode == Mode.DRAW
 
     private fun padHeightPx() =
         (screenH * (if (toolsVisible()) PAD_HEIGHT_TOOLS_RATIO else PAD_HEIGHT_RATIO)).toInt()
@@ -496,6 +507,29 @@ class CursorService : AccessibilityService() {
             visibility = if (toolsVisible()) View.VISIBLE else View.GONE
         }
 
+        // Stylo levé / baissé, et choix de l'outil Crayon / Gomme
+        val penStateBtn = smallButton("") { b ->
+            penDown = !penDown
+            drawing?.endStroke()
+            refreshPenState(b)
+        }
+        refreshPenState(penStateBtn)
+        val toolBtn = smallButton("") { b ->
+            tool = if (tool == Tool.PEN) Tool.ERASER else Tool.PEN
+            refreshTool(b)
+        }
+        refreshTool(toolBtn)
+        val penRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        penRow.addView(penStateBtn, LinearLayout.LayoutParams(0, rowH, 1f))
+        penRow.addView(toolBtn, LinearLayout.LayoutParams(0, rowH, 1f))
+        panel.addView(
+            penRow,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
         // Palette : 2 lignes de 4 couleurs
         swatches.clear()
         val margin = (2 * density).toInt()
@@ -562,6 +596,18 @@ class CursorService : AccessibilityService() {
         }
     }
 
+    private fun refreshPenState(b: Button) {
+        b.text = if (penDown) "Stylo baissé" else "Stylo levé"
+        b.setBackgroundColor(if (penDown) Color.rgb(30, 130, 60) else Color.rgb(90, 90, 90))
+        b.setTextColor(Color.WHITE)
+    }
+
+    private fun refreshTool(b: Button) {
+        b.text = if (tool == Tool.PEN) "Outil : Crayon" else "Outil : Gomme"
+        b.setBackgroundColor(if (tool == Tool.ERASER) Color.rgb(170, 90, 20) else Color.rgb(60, 60, 140))
+        b.setTextColor(Color.WHITE)
+    }
+
     private fun setMode(m: Mode) {
         if (dragActive) finishDrag()
         drawing?.endStroke()
@@ -616,8 +662,8 @@ class CursorService : AccessibilityService() {
      * Zone tactile. Selon le mode :
      *  Clic    : glisser = déplacer, toucher = clic, appui long = clic long
      *  Glisser : appui maintenu à la position du pointeur, puis déplacement (glisser-déposer)
-     *  Dessin  : trace un trait à la position du pointeur
-     *  Gomme   : efface les traits
+     *  Dessin  : stylo baissé = le pointeur trace en bougeant (même d'un geste à l'autre) ;
+     *            stylo levé = le pointeur bouge sans tracer ; outil Crayon ou Gomme
      */
     private inner class PadTouchListener : View.OnTouchListener {
         private var lastX = 0f
@@ -639,15 +685,12 @@ class CursorService : AccessibilityService() {
                     resetIdle()
                     when (mode) {
                         Mode.DRAG -> startDrag()
-                        Mode.DRAW, Mode.ERASE ->
-                            drawing?.beginStroke(
-                                cx, cy, penColor, penWidthPx(mode == Mode.ERASE), mode == Mode.ERASE
-                            )
+                        Mode.DRAW -> if (penDown) beginPenStroke()
                         Mode.CLICK -> {}
                     }
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val k = if (mode == Mode.DRAW || mode == Mode.ERASE) drawSensitivity else sensitivity
+                    val k = if (mode == Mode.DRAW) drawSensitivity else sensitivity
                     cx = (cx + (e.rawX - lastX) * k).coerceIn(0f, screenW.toFloat())
                     cy = (cy + (e.rawY - lastY) * k).coerceIn(0f, screenH.toFloat())
                     lastX = e.rawX
@@ -656,7 +699,7 @@ class CursorService : AccessibilityService() {
                     updateCursor()
                     when (mode) {
                         Mode.DRAG -> pumpDrag()
-                        Mode.DRAW, Mode.ERASE -> drawing?.extendStroke(cx, cy)
+                        Mode.DRAW -> if (penDown) drawing?.extendStroke(cx, cy)
                         Mode.CLICK -> {}
                     }
                     resetIdle()
@@ -670,7 +713,7 @@ class CursorService : AccessibilityService() {
                             }
                         }
                         Mode.DRAG -> finishDrag()
-                        Mode.DRAW, Mode.ERASE -> drawing?.endStroke()
+                        Mode.DRAW -> drawing?.endStroke()
                     }
                     resetIdle()
                 }

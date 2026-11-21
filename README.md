@@ -19,8 +19,16 @@ un petit pavé tactile déplaçable, le glisser-déposer et des outils de dessin
 |------|-------|
 | Clic | glisser = déplacer le pointeur, toucher = clic, appui long = clic long |
 | Glisser | glisser-déposer : appui maintenu à la position du pointeur (~0,5 s), puis déplacement ; en relevant le doigt, l'élément est lâché |
-| Dessin | trace un trait à la position du pointeur ; palette de 8 couleurs, épaisseur Fin/Moyen/Épais, Annuler (dernier trait), Effacer (tout) |
-| Gomme | efface les traits déjà tracés (épaisseur au choix) |
+| Dessin | voir ci-dessous |
+
+### Mode Dessin : stylo levé / baissé, crayon / gomme
+
+- **Stylo baissé** (vert) : le pointeur trace dès que tu le déplaces sur le pavé. Le trait continue d'un
+  geste à l'autre, car le pointeur reste à sa place quand tu lèves le doigt.
+- **Stylo levé** (gris) : le pointeur se déplace sans rien tracer, pour changer d'endroit.
+- **Outil : Crayon / Gomme** : la gomme efface les traits déjà tracés. Elle suit aussi l'état du stylo
+  (baissé = elle efface en bougeant).
+- Palette de 8 couleurs, épaisseur Fin / Moyen / Épais, **Annuler** (dernier trait), **Effacer** (tout).
 
 Les traits sont dessinés sur un calque transparent par-dessus les autres applis. Il ne bloque jamais
 les touches. Il est fixe à l'écran : si l'appli en dessous défile, le dessin ne bouge pas.
