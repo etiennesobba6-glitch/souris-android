@@ -1,13 +1,13 @@
 # Souris Android
 
 Pointeur de souris virtuel pour Android : un curseur flottant (flèche, main, texte, croix, point),
-un petit pavé tactile déplaçable, le glisser-déposer et des outils de dessin. Sans root.
+un petit pavé tactile déplaçable et le glisser-déposer. Sans root.
 
 ## Bouton rond flottant (toujours au-dessus de tout, déplaçable)
 
 - appui court : souris activée (✕ rouge) / désactivée (M gris, pavé et pointeur masqués)
 - appui long (~1 s) : **arrêt d'urgence**, le service s'arrête complètement
-- La souris s'éteint toute seule après **2 minutes** sans utilisation (les dessins restent)
+- La souris s'éteint toute seule après **2 minutes** sans utilisation
 
 ## Pavé
 
@@ -19,21 +19,9 @@ un petit pavé tactile déplaçable, le glisser-déposer et des outils de dessin
 |------|-------|
 | Clic | glisser = déplacer le pointeur, toucher = clic, appui long = clic long |
 | Glisser | glisser-déposer : appui maintenu à la position du pointeur (~0,5 s), puis déplacement ; en relevant le doigt, l'élément est lâché |
-| Dessin | voir ci-dessous |
 
-### Mode Dessin : stylo levé / baissé, crayon / gomme
-
-- **Stylo baissé** (vert) : le pointeur trace dès que tu le déplaces sur le pavé. Le trait continue d'un
-  geste à l'autre, car le pointeur reste à sa place quand tu lèves le doigt.
-- **Stylo levé** (gris) : le pointeur se déplace sans rien tracer, pour changer d'endroit.
-- **Outil : Crayon / Gomme** : la gomme efface les traits déjà tracés. Elle suit aussi l'état du stylo
-  (baissé = elle efface en bougeant).
-- Palette de 8 couleurs, épaisseur Fin / Moyen / Épais, **Annuler** (dernier trait), **Effacer** (tout).
-
-Les traits sont dessinés sur un calque transparent par-dessus les autres applis. Il ne bloque jamais
-les touches. Il est fixe à l'écran : si l'appli en dessous défile, le dessin ne bouge pas.
-
-Pour changer les couleurs, modifier la liste `palette` dans `CursorService.kt`.
+Les touches en dehors du pavé et du bouton passent normalement aux applis dessous,
+clavier compris. Le pointeur lui-même n'intercepte jamais les touches.
 
 ## Dernier recours si l'écran est bloqué
 
@@ -42,7 +30,7 @@ Réglages → Accessibilité → Applications installées → Souris Android →
 ## Compiler depuis Termux (sans PC)
 
 ```bash
-git add . && git commit -m "Mise à jour" && git push
+git add -A && git commit -m "Mise à jour" && git push
 ```
 
 Puis sur GitHub : onglet **Actions** → **Build APK** → télécharge l'artefact
@@ -51,5 +39,4 @@ Puis sur GitHub : onglet **Actions** → **Build APK** → télécharge l'artefa
 ## Pistes d'amélioration
 
 - Défilement (deux doigts sur le pavé)
-- Couleur personnalisée, formes (ligne, rectangle, cercle)
 - Boutons retour, accueil, récents (`performGlobalAction`)

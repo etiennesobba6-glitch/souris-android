@@ -26,25 +26,19 @@ import kotlin.math.abs
 /** Ce que fait un glissement sur le pavé. */
 enum class Mode(val label: String) {
     CLICK("Clic"),
-    DRAG("Glisser"),
-    DRAW("Dessin")
+    DRAG("Glisser")
 }
-
-/** Outil actif en mode Dessin. */
-enum class Tool { PEN, ERASER }
 
 /**
  * Service d'accessibilité. Fenêtres flottantes indépendantes :
- *  - le CALQUE DE DESSIN : plein écran, jamais tactile, sous tout le reste
- *  - le POINTEUR         : jamais tactile, ne bloque rien dessous
- *  - le PAVÉ             : petit, déplaçable (poignée), les touches hors du pavé passent
- *  - le BOUTON ROND      : toujours au-dessus, déplaçable
+ *  - le POINTEUR    : jamais tactile (FLAG_NOT_TOUCHABLE), ne bloque rien dessous
+ *  - le PAVÉ        : petit, déplaçable (poignée), les touches hors du pavé passent
+ *  - le BOUTON ROND : toujours au-dessus, déplaçable
  *        appui court = souris on/off, appui long = arrêt complet (arrêt d'urgence)
  *
- * Modes du pavé : Clic, Glisser (glisser-déposer), Dessin (stylo levé/baissé,
- * outil Crayon ou Gomme).
- * Extinction automatique de la souris après 2 minutes sans utilisation
- * (les dessins déjà tracés restent affichés).
+ * Modes du pavé : Clic, Glisser (glisser-déposer).
+ * Extinction automatique de la souris après 2 minutes sans utilisation.
+ * Les clics sont envoyés à la position du pointeur via dispatchGesture().
  */
 class CursorService : AccessibilityService() {
 
@@ -56,7 +50,6 @@ class CursorService : AccessibilityService() {
         private const val LONG_PRESS_STOP_MS = 900L
         private const val PAD_WIDTH_RATIO = 0.40f
         private const val PAD_HEIGHT_RATIO = 0.25f
-        private const val PAD_HEIGHT_TOOLS_RATIO = 0.46f
         private const val DRAG_HOLD_MS = 500L
     }
 
@@ -64,16 +57,12 @@ class CursorService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
 
     // --- fenêtres
-    private var drawing: DrawingView? = null
-    private var drawingParams: WindowManager.LayoutParams? = null
     private var cursor: CursorView? = null
     private lateinit var cursorParams: WindowManager.LayoutParams
     private var pad: View? = null
     private var padParams: WindowManager.LayoutParams? = null
     private var padX = -1
     private var padY = -1
-    private var modeButton: Button? = null
-    private var toolsPanel: View? = null
     private lateinit var toggle: TextView
     private lateinit var toggleParams: WindowManager.LayoutParams
 
@@ -88,26 +77,6 @@ class CursorService : AccessibilityService() {
     private var density = 1f
 
     private val sensitivity = 1.8f
-    private val drawSensitivity = 1.4f
-
-    // --- crayon
-    private val palette = intArrayOf(
-        Color.BLACK,
-        Color.WHITE,
-        Color.rgb(220, 40, 40),
-        Color.rgb(255, 140, 0),
-        Color.rgb(250, 210, 0),
-        Color.rgb(30, 160, 70),
-        Color.rgb(30, 90, 220),
-        Color.rgb(140, 50, 200)
-    )
-    private var penColor = palette[2]
-    private var penWidthIndex = 1
-    private var penDown = true          // stylo baissé : le pointeur trace en bougeant
-    private var tool = Tool.PEN
-    private val penWidthsDp = floatArrayOf(3f, 6f, 12f)
-    private val penWidthLabels = arrayOf("Fin", "Moyen", "Épais")
-    private val swatches = ArrayList<View>()
 
     // --- glisser-déposer
     private var dragStroke: GestureDescription.StrokeDescription? = null
@@ -131,7 +100,6 @@ class CursorService : AccessibilityService() {
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         density = resources.displayMetrics.density
         readScreenSize()
-        addDrawing()
         addToggle()
         setMouse(true)
     }
@@ -142,13 +110,6 @@ class CursorService : AccessibilityService() {
         readScreenSize()
         cx = cx.coerceIn(0f, screenW.toFloat())
         cy = cy.coerceIn(0f, screenH.toFloat())
-        drawing?.let { v ->
-            drawingParams?.let { p ->
-                p.width = screenW
-                p.height = screenH
-                wm.updateViewLayout(v, p)
-            }
-        }
         toggleParams.x = toggleParams.x.coerceIn(0, (screenW - toggle.width).coerceAtLeast(0))
         toggleParams.y = toggleParams.y.coerceIn(0, (screenH - toggle.height).coerceAtLeast(0))
         wm.updateViewLayout(toggle, toggleParams)
@@ -168,8 +129,6 @@ class CursorService : AccessibilityService() {
         if (::wm.isInitialized) {
             hideMouse()
             if (::toggle.isInitialized) removeQuietly(toggle)
-            removeQuietly(drawing)
-            drawing = null
         }
         instance = null
         super.onDestroy()
@@ -219,14 +178,11 @@ class CursorService : AccessibilityService() {
 
     private fun hideMouse() {
         if (dragActive) finishDrag()
-        drawing?.endStroke()
         removeQuietly(cursor)
         cursor = null
         removeQuietly(pad)
         pad = null
         padParams = null
-        modeButton = null
-        toolsPanel = null
     }
 
     private fun removeQuietly(v: View?) {
@@ -241,35 +197,6 @@ class CursorService : AccessibilityService() {
     private fun bringToggleToFront() {
         removeQuietly(toggle)
         wm.addView(toggle, toggleParams)
-    }
-
-    // ---------------------------------------------------------------- calque de dessin
-
-    private fun addDrawing() {
-        val view = DrawingView(this)
-        val params = WindowManager.LayoutParams(
-            screenW,
-            screenH,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply { gravity = Gravity.TOP or Gravity.START }
-        drawing = view
-        drawingParams = params
-        wm.addView(view, params)
-    }
-
-    private fun penWidthPx(erase: Boolean): Float {
-        val w = penWidthsDp[penWidthIndex] * density
-        return if (erase) w * 2.5f else w
-    }
-
-    /** Commence un trait (ou un coup de gomme) à la position du pointeur. */
-    private fun beginPenStroke() {
-        val erase = tool == Tool.ERASER
-        drawing?.beginStroke(cx, cy, penColor, penWidthPx(erase), erase)
     }
 
     // ---------------------------------------------------------------- bouton flottant
@@ -384,11 +311,6 @@ class CursorService : AccessibilityService() {
 
     // ---------------------------------------------------------------- pavé tactile
 
-    private fun toolsVisible() = mode == Mode.DRAW
-
-    private fun padHeightPx() =
-        (screenH * (if (toolsVisible()) PAD_HEIGHT_TOOLS_RATIO else PAD_HEIGHT_RATIO)).toInt()
-
     private fun smallButton(label: String, onClick: (Button) -> Unit): Button =
         Button(this).apply {
             isAllCaps = false
@@ -429,9 +351,10 @@ class CursorService : AccessibilityService() {
         )
 
         // Ligne : mode + forme du pointeur
-        val modeBtn = smallButton("Mode : ${mode.label}") {
+        val modeBtn = smallButton("Mode : ${mode.label}") { b ->
             val all = Mode.values()
             setMode(all[(mode.ordinal + 1) % all.size])
+            b.text = "Mode : ${mode.label}"
         }
         val typeBtn = smallButton("Forme : ${cursorType.label}") { b ->
             val all = CursorType.values()
@@ -450,18 +373,6 @@ class CursorService : AccessibilityService() {
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
-        modeButton = modeBtn
-
-        // Outils de dessin (visibles en modes Dessin et Gomme)
-        val tools = buildToolsPanel(rowH)
-        container.addView(
-            tools,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-        toolsPanel = tools
 
         // Zone tactile
         val touchArea = FrameLayout(this).apply {
@@ -474,7 +385,7 @@ class CursorService : AccessibilityService() {
         )
 
         val w = (screenW * PAD_WIDTH_RATIO).toInt()
-        val h = padHeightPx()
+        val h = (screenH * PAD_HEIGHT_RATIO).toInt()
         if (padX < 0 || padY < 0) {
             // Position par défaut : en bas à droite, au-dessus de la barre de navigation
             padX = screenW - w - (8 * density).toInt()
@@ -501,127 +412,9 @@ class CursorService : AccessibilityService() {
         wm.addView(container, params)
     }
 
-    private fun buildToolsPanel(rowH: Int): LinearLayout {
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            visibility = if (toolsVisible()) View.VISIBLE else View.GONE
-        }
-
-        // Stylo levé / baissé, et choix de l'outil Crayon / Gomme
-        val penStateBtn = smallButton("") { b ->
-            penDown = !penDown
-            drawing?.endStroke()
-            refreshPenState(b)
-        }
-        refreshPenState(penStateBtn)
-        val toolBtn = smallButton("") { b ->
-            tool = if (tool == Tool.PEN) Tool.ERASER else Tool.PEN
-            refreshTool(b)
-        }
-        refreshTool(toolBtn)
-        val penRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        penRow.addView(penStateBtn, LinearLayout.LayoutParams(0, rowH, 1f))
-        penRow.addView(toolBtn, LinearLayout.LayoutParams(0, rowH, 1f))
-        panel.addView(
-            penRow,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        // Palette : 2 lignes de 4 couleurs
-        swatches.clear()
-        val margin = (2 * density).toInt()
-        for (r in 0 until 2) {
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            for (c in 0 until 4) {
-                val idx = r * 4 + c
-                val sw = View(this).apply {
-                    setOnClickListener {
-                        penColor = palette[idx]
-                        refreshSwatches()
-                        resetIdle()
-                    }
-                }
-                swatches.add(sw)
-                row.addView(
-                    sw,
-                    LinearLayout.LayoutParams(0, rowH, 1f).apply {
-                        setMargins(margin, margin, margin, margin)
-                    }
-                )
-            }
-            panel.addView(
-                row,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            )
-        }
-        refreshSwatches()
-
-        // Épaisseur, annuler, tout effacer
-        val widthBtn = smallButton(penWidthLabels[penWidthIndex]) { b ->
-            penWidthIndex = (penWidthIndex + 1) % penWidthsDp.size
-            b.text = penWidthLabels[penWidthIndex]
-        }
-        val undoBtn = smallButton("Annuler") { drawing?.undo() }
-        val clearBtn = smallButton("Effacer") { drawing?.clear() }
-        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        actions.addView(widthBtn, LinearLayout.LayoutParams(0, rowH, 1f))
-        actions.addView(undoBtn, LinearLayout.LayoutParams(0, rowH, 1f))
-        actions.addView(clearBtn, LinearLayout.LayoutParams(0, rowH, 1f))
-        panel.addView(
-            actions,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-        return panel
-    }
-
-    private fun refreshSwatches() {
-        for ((i, v) in swatches.withIndex()) {
-            val selected = palette[i] == penColor
-            v.background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = 6 * density
-                setColor(palette[i])
-                if (selected) setStroke((4 * density).toInt(), Color.rgb(0, 200, 255))
-                else setStroke((1 * density).toInt(), Color.GRAY)
-            }
-        }
-    }
-
-    private fun refreshPenState(b: Button) {
-        b.text = if (penDown) "Stylo baissé" else "Stylo levé"
-        b.setBackgroundColor(if (penDown) Color.rgb(30, 130, 60) else Color.rgb(90, 90, 90))
-        b.setTextColor(Color.WHITE)
-    }
-
-    private fun refreshTool(b: Button) {
-        b.text = if (tool == Tool.PEN) "Outil : Crayon" else "Outil : Gomme"
-        b.setBackgroundColor(if (tool == Tool.ERASER) Color.rgb(170, 90, 20) else Color.rgb(60, 60, 140))
-        b.setTextColor(Color.WHITE)
-    }
-
     private fun setMode(m: Mode) {
         if (dragActive) finishDrag()
-        drawing?.endStroke()
         mode = m
-        modeButton?.text = "Mode : ${m.label}"
-        toolsPanel?.visibility = if (toolsVisible()) View.VISIBLE else View.GONE
-        val p = padParams
-        val v = pad
-        if (p != null && v != null) {
-            p.height = padHeightPx()
-            p.y = p.y.coerceIn(0, (screenH - p.height).coerceAtLeast(0))
-            padY = p.y
-            wm.updateViewLayout(v, p)
-        }
         resetIdle()
     }
 
@@ -662,8 +455,6 @@ class CursorService : AccessibilityService() {
      * Zone tactile. Selon le mode :
      *  Clic    : glisser = déplacer, toucher = clic, appui long = clic long
      *  Glisser : appui maintenu à la position du pointeur, puis déplacement (glisser-déposer)
-     *  Dessin  : stylo baissé = le pointeur trace en bougeant (même d'un geste à l'autre) ;
-     *            stylo levé = le pointeur bouge sans tracer ; outil Crayon ou Gomme
      */
     private inner class PadTouchListener : View.OnTouchListener {
         private var lastX = 0f
@@ -683,25 +474,16 @@ class CursorService : AccessibilityService() {
                     downTime = e.eventTime
                     moved = false
                     resetIdle()
-                    when (mode) {
-                        Mode.DRAG -> startDrag()
-                        Mode.DRAW -> if (penDown) beginPenStroke()
-                        Mode.CLICK -> {}
-                    }
+                    if (mode == Mode.DRAG) startDrag()
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val k = if (mode == Mode.DRAW) drawSensitivity else sensitivity
-                    cx = (cx + (e.rawX - lastX) * k).coerceIn(0f, screenW.toFloat())
-                    cy = (cy + (e.rawY - lastY) * k).coerceIn(0f, screenH.toFloat())
+                    cx = (cx + (e.rawX - lastX) * sensitivity).coerceIn(0f, screenW.toFloat())
+                    cy = (cy + (e.rawY - lastY) * sensitivity).coerceIn(0f, screenH.toFloat())
                     lastX = e.rawX
                     lastY = e.rawY
                     if (abs(e.rawX - downX) > 12 || abs(e.rawY - downY) > 12) moved = true
                     updateCursor()
-                    when (mode) {
-                        Mode.DRAG -> pumpDrag()
-                        Mode.DRAW -> if (penDown) drawing?.extendStroke(cx, cy)
-                        Mode.CLICK -> {}
-                    }
+                    if (mode == Mode.DRAG) pumpDrag()
                     resetIdle()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -713,7 +495,6 @@ class CursorService : AccessibilityService() {
                             }
                         }
                         Mode.DRAG -> finishDrag()
-                        Mode.DRAW -> drawing?.endStroke()
                     }
                     resetIdle()
                 }

@@ -33,9 +33,6 @@ class MainActivity : Activity() {
                 "• Pavé : barre grise = le déplacer. Bouton « Mode » :\n" +
                 "   - Clic : glisser = bouger le pointeur, toucher = clic\n" +
                 "   - Glisser : glisser-déposer (appui maintenu + déplacement)\n" +
-                "   - Dessin : stylo baissé = le pointeur trace en bougeant, " +
-                "stylo levé = il bouge sans tracer ; outil Crayon ou Gomme, " +
-                "couleurs, épaisseur, annuler, effacer\n" +
                 "• La souris s'éteint seule après 2 minutes d'inactivité.\n\n"
             textSize = 16f
             setTextColor(Color.BLACK)
